@@ -1,85 +1,39 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Building2, LayoutDashboard, Users, WalletCards, Wrench, Bell, FileText, Settings, ShieldCheck, Plus, ArrowLeft, TrendingUp, ReceiptText, CircleDollarSign, LogOut } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Building2, LayoutDashboard, Users, WalletCards, Wrench, Bell, FileText, Settings, ShieldCheck, Plus, ArrowLeft, ReceiptText, CircleDollarSign, LogOut, X, Save, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-browser';
 
-type Building = { id: string; name: string; address: string | null; created_at: string };
-const menu = [['داشبورد', LayoutDashboard], ['ساختمان‌ها', Building2], ['واحدها و ساکنان', Users], ['شارژ و مالی', WalletCards], ['هزینه‌ها و تعمیرات', Wrench], ['اعلان‌ها', Bell], ['اسناد و تصاویر', FileText]] as const;
+type Building={id:string;name:string;address:string|null;created_at:string};
+type Unit={id:string;building_id:string;unit_number:string;floor:number|null;area:number|null;occupant_count:number;owner_name:string|null;owner_phone:string|null};
+type Section='dashboard'|'buildings'|'units'|'finance'|'repairs'|'notices'|'documents'|'settings';
+const menu:[string,Section,any][]=[['داشبورد','dashboard',LayoutDashboard],['ساختمان‌ها','buildings',Building2],['واحدها و ساکنان','units',Users],['شارژ و مالی','finance',WalletCards],['هزینه‌ها و تعمیرات','repairs',Wrench],['اعلان‌ها','notices',Bell],['اسناد و تصاویر','documents',FileText]];
 
-export default function Home() {
-  const router = useRouter();
-  const [userName, setUserName] = useState('مدیر');
-  const [isGlobal, setIsGlobal] = useState(false);
-  const [buildings, setBuildings] = useState<Building[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace('/login'); return; }
-      const fullName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'مدیر';
-      if (mounted) setUserName(fullName);
-      const { data: ga } = await supabase.from('global_admins').select('user_id').eq('user_id', session.user.id).maybeSingle();
-      if (mounted) setIsGlobal(Boolean(ga));
-      const { data, error: buildingsError } = await supabase.from('buildings').select('id,name,address,created_at').order('created_at', { ascending: false });
-      if (buildingsError) setError('خطا در دریافت اطلاعات ساختمان‌ها.');
-      if (mounted) { setBuildings((data as Building[]) || []); setLoading(false); }
-    })();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => { if (!session) router.replace('/login'); });
-    return () => { mounted = false; listener.subscription.unsubscribe(); };
-  }, [router]);
-
-  async function createBuilding() {
-    if (!name.trim()) return setError('نام ساختمان را وارد کنید.');
-    setSaving(true); setError('');
-    const { error: rpcError } = await supabase.rpc('create_initial_building', { p_name: name.trim(), p_address: address.trim() || null });
-    if (rpcError) setError(rpcError.message);
-    else {
-      const { data: fresh } = await supabase.from('buildings').select('id,name,address,created_at').order('created_at', { ascending: false });
-      setBuildings((fresh as Building[]) || []); setName(''); setAddress(''); setShowCreate(false);
-    }
-    setSaving(false);
-  }
-
-  async function logout() { await supabase.auth.signOut(); router.replace('/login'); }
-  if (loading) return <main className="loading-screen" dir="rtl"><Building2 size={34}/><span>در حال بارگذاری پنل امن…</span></main>;
-
-  return (
-    <main className="shell" dir="rtl">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><Building2 size={22}/></div><div><strong>مدیریت یکپارچه ساختمان</strong><span>پنل مدیریت هوشمند</span></div></div>
-        <div className="profile-card"><div className="avatar">{userName.slice(0,1)}</div><div><b>{userName}</b><small>{isGlobal ? 'مدیر کل سامانه' : 'مدیر ساختمان'}</small></div><ShieldCheck size={17}/></div>
-        <nav>{menu.map(([label, Icon], i) => <button key={label} className={i === 0 ? 'active' : ''}><Icon size={18}/><span>{label}</span></button>)}</nav>
-        <div className="side-bottom"><button><Settings size={18}/><span>تنظیمات</span></button><button onClick={logout}><LogOut size={18}/><span>خروج</span></button></div>
-      </aside>
-      <section className="content">
-        <header className="topbar"><div><p className="eyebrow">محیط اختصاصی و ایمن</p><h1>{isGlobal ? 'پنل مدیریت کل سامانه' : 'داشبورد ساختمان'}</h1></div><div className="top-actions"><button className="icon-btn" aria-label="اعلان‌ها"><Bell size={19}/></button><div className="user-chip"><div className="mini-avatar">{userName.slice(0,1)}</div><span>{userName}</span></div></div></header>
-        <section className="hero"><div><span className="badge"><ShieldCheck size={14}/> تفکیک اطلاعات با RLS</span><h2>مدیریت ساختمان، یکپارچه و ساده</h2><p>هر ساختمان فقط اطلاعات مجاز خودش را می‌بیند و مدیریت کل، نمای سراسری دارد.</p></div><button className="primary" onClick={() => setShowCreate(true)}><Plus size={18}/> افزودن ساختمان</button></section>
-        {error && <div className="auth-error page-error">{error}</div>}
-        <section className="stats">
-          <Stat icon={<Building2 size={20}/>} title="ساختمان‌های قابل دسترسی" value={String(buildings.length)} note={isGlobal ? 'نمایش مدیریتی کل' : 'اختصاصی'} />
-          <Stat icon={<Users size={20}/>} title="واحدها و ساکنان" value="—" note="پس از ثبت واحدها" />
-          <Stat icon={<ReceiptText size={20}/>} title="شارژ ماه جاری" value="—" note="پس از فعال‌سازی مالی" />
-          <Stat icon={<CircleDollarSign size={20}/>} title="پرداخت‌ها" value="—" note="پس از ثبت پرداخت‌ها" />
-        </section>
-        <section className="grid-two">
-          <div className="panel"><div className="panel-head"><div><h3>{isGlobal ? 'همه ساختمان‌های سامانه' : 'ساختمان‌های تحت مدیریت'}</h3><span>داده‌ها از دیتابیس و با RLS فیلتر می‌شوند</span></div><button className="link-btn" onClick={() => setShowCreate(true)}>ساختمان جدید <Plus size={14}/></button></div>
-            {buildings.length === 0 ? <div className="empty-state"><Building2 size={28}/><b>هنوز ساختمانی ثبت نشده</b><span>اولین ساختمان را اضافه کنید تا مدیریت شروع شود.</span><button className="primary dark" onClick={() => setShowCreate(true)}><Plus size={16}/> ایجاد ساختمان</button></div> : buildings.map(b => <BuildingRow key={b.id} name={b.name} meta={b.address || 'آدرس ثبت نشده'} status="فعال" />)}
-          </div>
-          <div className="panel"><div className="panel-head"><div><h3>امنیت و دسترسی</h3><span>کنترل دسترسی در سطح PostgreSQL</span></div><TrendingUp size={19}/></div><div className="security-list"><div><ShieldCheck size={17}/><span>RLS فعال برای تمام جداول اصلی</span></div><div><ShieldCheck size={17}/><span>تفکیک کامل ساختمان‌ها</span></div><div><ShieldCheck size={17}/><span>{isGlobal ? 'دسترسی مدیر کل به نمای سامانه' : 'دسترسی فقط به ساختمان‌های مجاز'}</span></div></div></div>
-        </section>
-      </section>
-      {showCreate && <div className="modal-backdrop" onClick={() => !saving && setShowCreate(false)}><div className="modal-card" onClick={e => e.stopPropagation()}><div className="modal-title"><div><h3>ساختمان جدید</h3><span>پس از ثبت، مدیر ایجادکننده فقط همین ساختمان را مدیریت می‌کند.</span></div><Building2 size={22}/></div><label>نام ساختمان</label><input value={name} onChange={e => setName(e.target.value)} placeholder="مثلاً ساختمان گلستان" /><label>آدرس</label><textarea value={address} onChange={e => setAddress(e.target.value)} placeholder="آدرس ساختمان" rows={3}/><div className="modal-actions"><button onClick={() => setShowCreate(false)} disabled={saving}>انصراف</button><button className="primary dark" onClick={createBuilding} disabled={saving}>{saving ? 'در حال ثبت…' : 'ثبت ساختمان'}</button></div></div></div>}
-    </main>
-  );
+export default function Home(){
+ const router=useRouter();const [userName,setUserName]=useState('مدیر');const [isGlobal,setIsGlobal]=useState(false);const [buildings,setBuildings]=useState<Building[]>([]);const [selectedBuilding,setSelectedBuilding]=useState('');const [units,setUnits]=useState<Unit[]>([]);const [section,setSection]=useState<Section>('dashboard');const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [error,setError]=useState('');
+ const [showCreate,setShowCreate]=useState(false),[name,setName]=useState(''),[address,setAddress]=useState('');const [showUnit,setShowUnit]=useState(false),[unitNumber,setUnitNumber]=useState(''),[floor,setFloor]=useState(''),[area,setArea]=useState(''),[occupants,setOccupants]=useState('1'),[ownerName,setOwnerName]=useState(''),[ownerPhone,setOwnerPhone]=useState('');
+ useEffect(()=>{let mounted=true;(async()=>{const {data:{session}}=await supabase.auth.getSession();if(!session){router.replace('/login');return}setUserName(session.user.user_metadata?.full_name||session.user.email?.split('@')[0]||'مدیر');const {data:ga}=await supabase.from('global_admins').select('user_id').eq('user_id',session.user.id).maybeSingle();setIsGlobal(Boolean(ga));const {data,error:e}=await supabase.from('buildings').select('id,name,address,created_at').order('created_at',{ascending:false});if(e)setError('خطا در دریافت ساختمان‌ها.');if(mounted){setBuildings((data as Building[])||[]);setSelectedBuilding(data?.[0]?.id||'');setLoading(false)}})();const {data:l}=supabase.auth.onAuthStateChange((_e,s)=>{if(!s)router.replace('/login')});return()=>{mounted=false;l.subscription.unsubscribe()}},[router]);
+ useEffect(()=>{if(selectedBuilding)refreshUnits();else setUnits([])},[selectedBuilding]);
+ async function refreshUnits(){if(!selectedBuilding)return;const {data,error:e}=await supabase.from('units').select('*').eq('building_id',selectedBuilding).order('unit_number');if(e)setError('خطا در دریافت واحدها.');setUnits((data as Unit[])||[])}
+ async function createBuilding(){if(!name.trim())return setError('نام ساختمان را وارد کنید.');setSaving(true);setError('');const {error:e}=await supabase.rpc('create_initial_building',{p_name:name.trim(),p_address:address.trim()||null});if(e)setError(e.message);else{const {data}=await supabase.from('buildings').select('id,name,address,created_at').order('created_at',{ascending:false});setBuildings((data as Building[])||[]);if(data?.[0])setSelectedBuilding(data[0].id);setName('');setAddress('');setShowCreate(false)}setSaving(false)}
+ async function createUnit(){if(!selectedBuilding||!unitNumber.trim())return setError('ساختمان و شماره واحد را مشخص کنید.');setSaving(true);setError('');const {error:e}=await supabase.from('units').insert({building_id:selectedBuilding,unit_number:unitNumber.trim(),floor:floor?Number(floor):null,area:area?Number(area):null,occupant_count:Math.max(0,Number(occupants)||0),owner_name:ownerName.trim()||null,owner_phone:ownerPhone.trim()||null});if(e)setError(e.message);else{await refreshUnits();setShowUnit(false);setUnitNumber('');setFloor('');setArea('');setOccupants('1');setOwnerName('');setOwnerPhone('')}setSaving(false)}
+ async function deleteUnit(id:string){if(!confirm('این واحد حذف شود؟'))return;const {error:e}=await supabase.from('units').delete().eq('id',id);if(e)setError(e.message);else await refreshUnits()}
+ async function logout(){await supabase.auth.signOut();router.replace('/login')}
+ const current=buildings.find(b=>b.id===selectedBuilding);const residentCount=useMemo(()=>units.reduce((s,u)=>s+(u.occupant_count||0),0),[units]);
+ if(loading)return <main className="loading-screen" dir="rtl"><Building2 size={34}/><span>در حال بارگذاری پنل امن…</span></main>;
+ return <main className="shell" dir="rtl"><aside className="sidebar"><div className="brand"><div className="brand-mark"><Building2 size={22}/></div><div><strong>مدیریت یکپارچه ساختمان</strong><span>پنل مدیریت هوشمند</span></div></div><div className="profile-card"><div className="avatar">{userName.slice(0,1)}</div><div><b>{userName}</b><small>{isGlobal?'مدیر کل سامانه':'مدیر ساختمان'}</small></div><ShieldCheck size={17}/></div><nav>{menu.map(([label,key,Icon])=><button key={key} className={section===key?'active':''} onClick={()=>setSection(key)}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="side-bottom"><button onClick={()=>setSection('settings')}><Settings size={18}/><span>تنظیمات</span></button><button onClick={logout}><LogOut size={18}/><span>خروج</span></button></div></aside>
+ <section className="content"><header className="topbar"><div><p className="eyebrow">محیط اختصاصی و ایمن</p><h1>{isGlobal?'پنل مدیریت کل سامانه':'داشبورد ساختمان'}</h1></div><div className="top-actions"><button className="icon-btn"><Bell size={19}/></button><div className="user-chip"><div className="mini-avatar">{userName.slice(0,1)}</div><span>{userName}</span></div></div></header>
+ {buildings.length>0&&<div className="panel" style={{marginBottom:16}}><div className="panel-head"><div><h3>ساختمان فعال</h3><span>تمام اطلاعات زیر فقط مربوط به همین ساختمان است.</span></div><select value={selectedBuilding} onChange={e=>setSelectedBuilding(e.target.value)}>{buildings.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></div></div>}
+ {error&&<div className="auth-error page-error">{error}<button onClick={()=>setError('')}><X size={15}/></button></div>}
+ {section==='dashboard'&&<><section className="hero"><div><span className="badge"><ShieldCheck size={14}/> تفکیک اطلاعات با RLS</span><h2>مدیریت ساختمان، یکپارچه و ساده</h2><p>{current?`ساختمان «${current.name}» آماده مدیریت است.`:'اولین ساختمان را ایجاد کنید و مدیریت را شروع کنید.'}</p></div><button className="primary" onClick={()=>setShowCreate(true)}><Plus size={18}/> افزودن ساختمان</button></section><section className="stats"><Stat icon={<Building2 size={20}/>} title="ساختمان‌های قابل دسترسی" value={String(buildings.length)} note={isGlobal?'نمایش مدیریتی کل':'اختصاصی'}/><Stat icon={<Users size={20}/>} title="واحدها" value={String(units.length)} note={`${residentCount} نفر ثبت‌شده`}/><Stat icon={<ReceiptText size={20}/>} title="شارژ ماه جاری" value="—" note="در حال تکمیل"/><Stat icon={<CircleDollarSign size={20}/>} title="پرداخت‌ها" value="—" note="در حال تکمیل"/></section></>}
+ {section==='buildings'&&<BuildingsView buildings={buildings} selected={selectedBuilding} onSelect={setSelectedBuilding} onNew={()=>setShowCreate(true)}/>} {section==='units'&&<UnitsView units={units} onNew={()=>setShowUnit(true)} onDelete={deleteUnit} onRefresh={refreshUnits}/>} {section==='finance'&&<Module title="شارژ و مالی" icon={<WalletCards size={22}/>} text="زیرساخت شارژ، هزینه و پرداخت در دیتابیس آماده است و فرم‌های مالی در مرحله بعدی فعال می‌شوند."/>} {section==='repairs'&&<Module title="هزینه‌ها و تعمیرات" icon={<Wrench size={22}/>} text="ثبت هزینه، تعمیرات، واحدهای متاثر و سهم هر واحد در این بخش تکمیل می‌شود."/>} {section==='notices'&&<Module title="اعلان‌ها" icon={<Bell size={22}/>} text="مدیریت اطلاعیه‌های ساختمان در این بخش تکمیل می‌شود."/>} {section==='documents'&&<Module title="اسناد و تصاویر" icon={<FileText size={22}/>} text="مدیریت اسناد و تصاویر با تفکیک ساختمان در این بخش تکمیل می‌شود."/>} {section==='settings'&&<Module title="تنظیمات" icon={<Settings size={22}/>} text="روش تقسیم هزینه‌ها: بر اساس واحد یا تعداد ساکنان، در این بخش تنظیم می‌شود."/>}</section>
+ {showCreate&&<Modal title="ساختمان جدید" close={()=>!saving&&setShowCreate(false)}><label>نام ساختمان</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="مثلاً ساختمان گلستان"/><label>آدرس</label><textarea value={address} onChange={e=>setAddress(e.target.value)} rows={3} placeholder="آدرس ساختمان"/><Actions close={()=>setShowCreate(false)} saving={saving} save={createBuilding} text="ثبت ساختمان"/></Modal>}
+ {showUnit&&<Modal title="ثبت واحد جدید" close={()=>!saving&&setShowUnit(false)}><div className="form-grid"><div><label>شماره واحد</label><input value={unitNumber} onChange={e=>setUnitNumber(e.target.value)} placeholder="101"/></div><div><label>طبقه</label><input inputMode="numeric" value={floor} onChange={e=>setFloor(e.target.value)}/></div><div><label>متراژ</label><input inputMode="decimal" value={area} onChange={e=>setArea(e.target.value)}/></div><div><label>تعداد ساکنان</label><input inputMode="numeric" value={occupants} onChange={e=>setOccupants(e.target.value)}/></div></div><label>نام مالک</label><input value={ownerName} onChange={e=>setOwnerName(e.target.value)}/><label>تلفن مالک</label><input inputMode="tel" value={ownerPhone} onChange={e=>setOwnerPhone(e.target.value)}/><Actions close={()=>setShowUnit(false)} saving={saving} save={createUnit} text="ثبت واحد"/></Modal>}</main>
 }
-function Stat({icon,title,value,note}:{icon:React.ReactNode;title:string;value:string;note:string}) { return <div className="stat"><div className="stat-icon">{icon}</div><span>{title}</span><strong>{value}</strong><small>{note}</small></div>; }
-function BuildingRow({name,meta,status}:{name:string;meta:string;status:string}) { return <div className="building-row"><div className="building-icon"><Building2 size={18}/></div><div className="row-main"><b>{name}</b><span>{meta}</span></div><span className="status">{status}</span><ArrowLeft size={15}/></div>; }
+function Stat({icon,title,value,note}:{icon:React.ReactNode;title:string;value:string;note:string}){return <div className="stat"><div className="stat-icon">{icon}</div><span>{title}</span><strong>{value}</strong><small>{note}</small></div>}
+function BuildingsView({buildings,selected,onSelect,onNew}:{buildings:Building[];selected:string;onSelect:(s:string)=>void;onNew:()=>void}){return <div className="panel"><div className="panel-head"><div><h3>ساختمان‌های سامانه</h3><span>انتخاب ساختمان، محدوده اطلاعات پنل را مشخص می‌کند.</span></div><button className="primary dark" onClick={onNew}><Plus size={16}/> ساختمان جدید</button></div>{buildings.length===0?<div className="empty-state"><Building2 size={28}/><b>ساختمانی ثبت نشده</b></div>:buildings.map(b=><button className="building-row" key={b.id} onClick={()=>onSelect(b.id)}><div className="building-icon"><Building2 size={18}/></div><div className="row-main"><b>{b.name}</b><span>{b.address||'آدرس ثبت نشده'}</span></div>{selected===b.id&&<span className="status">فعال</span>}<ArrowLeft size={15}/></button>)}</div>}
+function UnitsView({units,onNew,onDelete,onRefresh}:{units:Unit[];onNew:()=>void;onDelete:(id:string)=>void;onRefresh:()=>void}){return <div className="panel"><div className="panel-head"><div><h3>واحدها و ساکنان</h3><span>{units.length} واحد ثبت شده</span></div><div style={{display:'flex',gap:8}}><button className="icon-btn" onClick={onRefresh}><RefreshCw size={17}/></button><button className="primary dark" onClick={onNew}><Plus size={16}/> ثبت واحد</button></div></div>{units.length===0?<div className="empty-state"><Users size={28}/><b>هنوز واحدی ثبت نشده</b><span>اولین واحد ساختمان را اضافه کنید.</span><button className="primary dark" onClick={onNew}><Plus size={16}/> ثبت واحد</button></div>:<div className="table-wrap"><table><thead><tr><th>واحد</th><th>طبقه</th><th>متراژ</th><th>ساکنان</th><th>مالک</th><th></th></tr></thead><tbody>{units.map(u=><tr key={u.id}><td><b>{u.unit_number}</b></td><td>{u.floor??'—'}</td><td>{u.area?`${u.area} متر`:'—'}</td><td>{u.occupant_count}</td><td>{u.owner_name||'—'}</td><td><button className="danger-btn" onClick={()=>onDelete(u.id)}>حذف</button></td></tr>)}</tbody></table></div>}</div>}
+function Module({title,icon,text}:{title:string;icon:React.ReactNode;text:string}){return <div className="panel module-placeholder"><div className="module-icon">{icon}</div><h2>{title}</h2><p>{text}</p><span className="badge">زیرساخت دیتابیس آماده است</span></div>}
+function Modal({title,close,children}:{title:string;close:()=>void;children:React.ReactNode}){return <div className="modal-backdrop" onClick={close}><div className="modal-card" onClick={e=>e.stopPropagation()}><div className="modal-title"><div><h3>{title}</h3><span>اطلاعات فقط در محدوده ساختمان انتخاب‌شده ثبت می‌شود.</span></div><button className="icon-btn" onClick={close}><X size={18}/></button></div>{children}</div></div>}
+function Actions({close,saving,save,text}:{close:()=>void;saving:boolean;save:()=>void;text:string}){return <div className="modal-actions"><button onClick={close} disabled={saving}>انصراف</button><button className="primary dark" onClick={save} disabled={saving}>{saving?<><RefreshCw size={15}/> در حال ثبت…</>:<><Save size={15}/> {text}</>}</button></div>}
