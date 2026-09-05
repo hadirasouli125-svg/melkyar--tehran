@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Apply panel patch
         env:
-          PATCH_B64: PLACEHOLDER
+          PATCH_B64: "c2NyaXB0"
         run: |
           echo "$PATCH_B64" | base64 -d > /tmp/patch.py
           python3 /tmp/patch.py
