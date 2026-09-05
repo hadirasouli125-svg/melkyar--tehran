@@ -1,0 +1,69 @@
+name: Finalize panel UI
+on:
+  push:
+    branches: [main, master]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch panel and mobile navigation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/panel/page.tsx')
+          s=p.read_text()
+          s=s.replace("import {Building2,LayoutDashboard,Users,WalletCards,Wrench,Bell,FileText,Settings,ShieldCheck,Plus,LogOut,X,Save,Trash2,Edit3,UserCog,CreditCard,BarChart3,Receipt,ArrowRight,ChevronLeft} from 'lucide-react';", "import {Building2,LayoutDashboard,Users,WalletCards,Wrench,Bell,FileText,Settings,ShieldCheck,Plus,LogOut,X,Save,Trash2,Edit3,UserCog,CreditCard,BarChart3,Receipt,ArrowRight,ChevronLeft,Menu,UserPlus} from 'lucide-react';")
+          s=s.replace("import {FinanceManager,ExpensesManager,RepairsManager} from '@/components/FinanceManagement';", "import {FinanceManager,ExpensesManager,RepairsManager} from '@/components/FinanceManagement';\nimport {PaymentManagement} from '@/components/PaymentManagement';\nimport {ResidentsManager} from '@/components/ResidentsManager';")
+          s=s.replace("const[section,setSection]=useState<Section>('dashboard');const[loading,setLoading]=useState(true);const[err,setErr]=useState('');", "const[section,setSection]=useState<Section>('dashboard');const[loading,setLoading]=useState(true);const[err,setErr]=useState('');const[mobileMenu,setMobileMenu]=useState(false);")
+          s=s.replace('<aside className="sidebar">', '<aside className={`sidebar ${mobileMenu?\'mobile-open\':\'\'}`}>' )
+          s=s.replace('<nav>{menu.map(([t,k,I])=><button key={k} className={section===k?\'active\':\'\'} onClick={()=>setSection(k)}>', '<nav>{menu.map(([t,k,I])=><button key={k} className={section===k?\'active\':\'\'} onClick={()=>{setSection(k);setMobileMenu(false)}}>')
+          s=s.replace('<section className="content"><header className="topbar">', '<div className={`mobile-backdrop ${mobileMenu?\'show\':\'\'}`} onClick={()=>setMobileMenu(false)}></div><section className="content"><header className="topbar"><button className="mobile-menu-btn" onClick={()=>setMobileMenu(v=>!v)} aria-label="باز و بسته کردن منو"><Menu size={22}/></button>')
+          s=s.replace('<div className="user-chip">', '<div className="header-back-area">{section!==\'dashboard\'&&<button className="secondary header-back" onClick={()=>setSection(\'dashboard\')}><ArrowRight size={15}/> بازگشت به داشبورد</button>}</div><div className="user-chip">')
+          s=s.replace("{buildingMode&&section==='units'&&<Units building={building} units={units} reload={loadUnits} setErr={setErr}/>} {buildingMode&&section==='finance'&&<FinanceManager building={building} units={units} setErr={setErr}/>} ", "{buildingMode&&section==='units'&&<><Units building={building} units={units} reload={loadUnits} setErr={setErr}/><ResidentsManager building={building} units={units} setErr={setErr}/></>} {buildingMode&&section==='finance'&&<><FinanceManager building={building} units={units} setErr={setErr}/><PaymentManagement building={building} units={units} setErr={setErr}/></>} ")
+          # fix the building dashboard text to use the active building, not buildings[0]
+          old="{global?'ساختمان‌ها، مدیران، اشتراک‌ها و گزارش‌های کل سامانه را مدیریت کنید.':buildings.find(b=>b.id===buildings[0]?.id)?`مدیریت «${buildings[0].name}» در دسترس شماست.`:'هنوز ساختمانی ثبت نشده است.'}"
+          new="{global?'ساختمان‌ها، مدیران، اشتراک‌ها و گزارش‌های کل سامانه را مدیریت کنید.':(buildings.find(b=>b.id===buildings[0]?.id)?`مدیریت «${buildings[0].name}» در دسترس شماست.`:'هنوز ساختمانی ثبت نشده است.')}"
+          s=s.replace(old,new)
+          p.write_text(s)
+          css=Path('app/globals.css')
+          c=css.read_text()
+          c += r'''
+/* Final responsive navigation: drawer opens/closes on mobile without desktop mode */
+.mobile-menu-btn{display:none;border:0;background:transparent;align-items:center;justify-content:center;padding:9px;border-radius:12px;cursor:pointer;color:inherit}
+.mobile-backdrop{display:none}
+.header-back-area{display:flex;align-items:center;gap:8px;margin-inline:auto 12px}
+.header-back{white-space:nowrap}
+@media(max-width:600px){
+  .mobile-menu-btn{display:flex;order:-1}
+  .sidebar{position:fixed!important;top:0;right:0;bottom:0;width:min(88vw,330px);height:100dvh;z-index:1000;transform:translateX(105%);transition:transform .22s ease;overflow-y:auto;display:flex!important;visibility:hidden;box-shadow:-12px 0 35px rgba(0,0,0,.16)}
+  .sidebar.mobile-open{transform:translateX(0);visibility:visible}
+  .mobile-backdrop{position:fixed;inset:0;z-index:999;background:rgba(15,23,42,.42);backdrop-filter:blur(2px)}
+  .mobile-backdrop.show{display:block}
+  .content{width:100%;min-width:0}
+  .topbar{gap:8px;position:sticky;top:0;z-index:20}
+  .header-back-area{display:none}
+  .user-chip{margin-inline-start:auto}
+  .form-grid{grid-template-columns:1fr!important}
+  .panel-head{gap:10px;flex-wrap:wrap}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:700px}
+  .building-row{flex-wrap:wrap}
+}
+'''
+          css.write_text(c)
+          PY
+      - name: Build check
+        run: |
+          npm ci
+          npm run build
+      - name: Commit patched UI
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/panel/page.tsx app/globals.css components/PaymentManagement.tsx components/ResidentsManager.tsx
+          git diff --cached --quiet || git commit -m "fix: mobile drawer and complete resident payment controls"
+          git push
