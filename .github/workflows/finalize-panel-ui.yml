@@ -12,13 +12,9 @@ jobs:
       - name: Apply panel patch
         env:
           PATCH_B64: "c2NyaXB0"
-        run: |
-          echo "$PATCH_B64" | base64 -d > /tmp/patch.py
-          python3 /tmp/patch.py
+        run: echo "$PATCH_B64" | base64 -d > /tmp/patch.py && python3 /tmp/patch.py
       - name: Build
-        run: |
-          npm ci
-          npm run build
+        run: npm ci && npm run build
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
