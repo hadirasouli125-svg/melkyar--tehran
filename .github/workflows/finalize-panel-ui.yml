@@ -13,7 +13,7 @@ jobs:
       - name: Apply panel patch
         run: python3 scripts/finalize_panel.py
       - name: Build
-        run: npm ci && npm run build
+        run: npm install && npm run build
       - name: Commit patched UI
         run: |
           git config user.name "github-actions[bot]"
