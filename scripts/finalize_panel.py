@@ -17,10 +17,13 @@ repls = [
 ('<div className="user-chip">',
  '<div className="header-back-area">{section!==\'dashboard\'&&<button className="secondary header-back" onClick={()=>setSection(\'dashboard\')}><ArrowRight size={15}/> بازگشت به داشبورد</button>}</div><div className="user-chip">'),
 ("{buildingMode&&section==='units'&&<Units building={building} units={units} reload={loadUnits} setErr={setErr}/>} {buildingMode&&section==='finance'&&<FinanceManager building={building} units={units} setErr={setErr}/>} ",
- "{buildingMode&&section==='units'&&<><Units building={building} units={units} reload={loadUnits} setErr={setErr}/><ResidentsManager building={building} units={units} setErr={setErr}/>} {buildingMode&&section==='finance'&&<><FinanceManager building={building} units={units} setErr={setErr}/><PaymentManagement building={building} units={units} setErr={setErr}/>} ")
+ "{buildingMode&&section==='units'&&<><Units building={building} units={units} reload={loadUnits} setErr={setErr}/><ResidentsManager building={building} units={units} setErr={setErr}/></>} {buildingMode&&section==='finance'&&<><FinanceManager building={building} units={units} setErr={setErr}/><PaymentManagement building={building} units={units} setErr={setErr}/>} ")
 ]
 for a,b in repls:
     s = s.replace(a,b)
+# Close the two fragments added above.
+s = s.replace("<ResidentsManager building={building} units={units} setErr={setErr}/>} {buildingMode&&section==='finance'", "<ResidentsManager building={building} units={units} setErr={setErr}/></>} {buildingMode&&section==='finance'")
+s = s.replace("<PaymentManagement building={building} units={units} setErr={setErr}/>} {buildingMode&&section==='expenses'", "<PaymentManagement building={building} units={units} setErr={setErr}/></>} {buildingMode&&section==='expenses'")
 p.write_text(s)
 
 css = Path('app/globals.css')
